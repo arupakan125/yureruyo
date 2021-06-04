@@ -10,6 +10,4 @@ RUN apk add --no-cache git
 COPY ./app /app
 WORKDIR /app
 
-EXPOSE 8000
-
-CMD ["python", "app.py"]
+CMD ["python", "-u", "app.py"]
