@@ -19,10 +19,12 @@ class YureruyoMessage():
 
     def update(self, response):
         self.update_blocks(response)
+        self.update_attachments(response)
         self.client.chat_update(
             channel = self.message.data["channel"],
             ts = self.message.data["ts"],
             blocks = self.blocks,
+            attachments = self.attachments,
             text = "緊急地震速報を受信しました。",
         )
 
@@ -71,103 +73,115 @@ class YureruyoMessage():
                 }
             )
 
-        if response.get("Hypocenter"):
-            self.blocks.append(
-                {
-                    "type": "divider"
-                }
-            )
-            self.blocks.append(
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "*発生日時*\n" + response["OriginTime"]["String"]
-                    },
-                    "fields": [
-                        {
-                            "type": "mrkdwn",
-                            "text": "*震源地*\n" + response["Hypocenter"]["Name"],
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*予想震度*\n" + response["MaxIntensity"]["LongString"],
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*震源の深さ*\n" + response["Hypocenter"]["Location"]["Depth"]["String"]
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*マグニチュード*\n" + str(response["Hypocenter"]["Magnitude"]["Float"])
-                        }
-                    ]
-                }
-            )
-        self.blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "image",
-                        "image_url": "https://www.jma.go.jp/jma/kishou/img/logo2.jpg",
-                        "alt_text": "JMA Logo"
-                    },
-                    {
-                        "type": "plain_text",
-                        "text": "第" + str(response["Serial"]) + "報 | 気象庁発表",
-                        "emoji": True
-                    }
-                ]
-            }
-        )
-        self.blocks.append(
-            {
-                "type": "divider"
-            }
-        )
         return self.blocks
 
+    def update_attachments(self, response):
+        self.attachments = []
+        if response["Title"]["Code"] == 39:
+            return
+        self.attachments.append(
+            {
+                "color": "good" if not response.get("Warn") else "danger",
+                "fields": [
+                    {
+                        "title": "震源地",
+                        "value": response["Hypocenter"]["Name"],
+                        "short": "true"
+                    },
+                    {
+                        "title": "予想震度",
+                        "value": response["MaxIntensity"]["LongString"],
+                        "short": "true"
+                    },
+                    {
+                        "title": "震源の深さ",
+                        "value": response["Hypocenter"]["Location"]["Depth"]["String"],
+                        "short": "true"
+                    },
+                    {
+                        "title": "マグニチュード",
+                        "value": response["Hypocenter"]["Magnitude"]["Float"],
+                        "short": "true"
+                    }
+                ],
+                "image_url": "http://my-website.com/path/to/image.jpg",
+                "thumb_url": "http://example.com/path/to/thumb.png",
+                "footer": "第" + str(response["Serial"]) + "報 | 気象庁発表",
+                "footer_icon": "https://www.jma.go.jp/jma/kishou/img/logo2.jpg",
+                "ts": response["OriginTime"]["UnixTime"]
+            }
+        )
+        if not response.get("Forecast"):
+            return
+        for forecast in response.get("Forecast"):
+            if forecast["Warn"] == False:
+                continue
+
+            self.attachments.append(
+                {
+                    "color": "danger",
+                    "fields": [
+                        {
+                            "title": "警報対象地域",
+                            "value": forecast["Intensity"]["Name"]
+                        },
+                        {
+                            "title": "予想震度",
+                            "value": forecast["Intensity"]["Description"]
+                        },
+                        {
+                            "title": "到達予想時刻",
+                            "value": forecast.get("Arrival").get("Time") if forecast.get("Arrival").get("Time") else forecast["Arrival"]["Condition"]
+                        }
+                    ]
+                },
+            )
     def create_postdata():
         pass
 
 class YureruyoManager():
-    def __init__(self, client, channel, response):
+    def __init__(self, client, channel):
         self.messages = []
         self.client = client
         self.channel = channel
-        self.response = response
-        self.original_text = response["OriginalText"]
-        print(response)
+        self.update_response()
+        self.original_text = self.response["OriginalText"]
+        print(self.response)
         pass
     
-    def update(self, response):
-        if self.original_text == response["OriginalText"]:
+    def update(self, response=None):
+        if response == None:
+            self.update_response() 
+        else:
+            self.response = response
+
+        if self.original_text == self.response["OriginalText"]:
             return
-        self.original_text = response["OriginalText"]
-        print(response)
+        self.original_text = self.response["OriginalText"]
+        print(self.response)
 
         for message in self.messages:
-            if message["EventID"] == response["EventID"]:
-                message["YureruyoMessage"].update(response)
+            if message["EventID"] == self.response["EventID"]:
+                message["YureruyoMessage"].update(self.response)
                 return
         self.messages.append(
             {
-                "EventID": response["EventID"],
-                "YureruyoMessage": YureruyoMessage(client=self.client, channel=self.channel, response=response)
+                "EventID": self.response["EventID"],
+                "YureruyoMessage": YureruyoMessage(client=self.client, channel=self.channel, response=self.response)
             }
         )
+    def update_response(self):
+        self.response = json.loads(requests.get("https://api.iedred7584.com/eew/json/").text)
 
 if __name__ == "__main__":
-    response = json.loads(requests.get("https://api.iedred7584.com/eew/json/").text)
 
-    manager = YureruyoManager(client=app.client, channel=CHANNEL_ID, response=response)
+    manager = YureruyoManager(client=app.client, channel=CHANNEL_ID)
     while True:
         try:
-            response = json.loads(requests.get("https://api.iedred7584.com/eew/json/").text)
-            manager.update(response)
-        except:
+            manager.update()
+        except Exception as e:
             print("Some error occurred. Retrying in 3 seconds.")
+            print(e)
             sleep(3)
             continue
         sleep(1)
