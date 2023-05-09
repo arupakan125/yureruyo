@@ -115,31 +115,7 @@ class YureruyoMessage():
                 "ts": response["OriginTime"]["UnixTime"]
             }
         )
-        if not response.get("Forecast"):
-            return
-        for forecast in response.get("Forecast"):
-            if forecast["Warn"] == False:
-                continue
 
-            self.attachments.append(
-                {
-                    "color": "danger",
-                    "fields": [
-                        {
-                            "title": "警報対象地域",
-                            "value": forecast["Intensity"]["Name"]
-                        },
-                        {
-                            "title": "予想震度",
-                            "value": forecast["Intensity"]["Description"]
-                        },
-                        {
-                            "title": "到達予想時刻",
-                            "value": forecast.get("Arrival").get("Time") if forecast.get("Arrival").get("Time") else forecast["Arrival"]["Condition"]
-                        }
-                    ]
-                },
-            )
     def create_postdata():
         pass
 
