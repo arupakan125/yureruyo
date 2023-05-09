@@ -12,7 +12,11 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")
 class YureruyoMessage():
     def __init__(self, client, channel, response):
         
-        self.message = client.chat_postMessage(text="緊急地震速報を受信しました。", channel=channel)
+        self.message = client.chat_postMessage(text=
+                                                response["Hypocenter"]["Name"] + "で地震(" +
+                                                response["Hypocenter"]["Magnitude"]["String"] + ") 震度" +
+                                                response["MaxIntensity"]["LongString"],
+                                                channel=channel)
         self.client = client
         self.update(response)
         pass
