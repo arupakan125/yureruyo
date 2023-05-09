@@ -8,6 +8,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 # ボットトークンとソケットモードハンドラーを使ってアプリを初期化します
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
+WARN_ONLY = os.getenv("WARN_ONLY") == "True"
 
 class YureruyoMessage():
     def __init__(self, client, channel, response):
@@ -138,6 +139,11 @@ class YureruyoManager():
         if self.original_text == self.response["OriginalText"]:
             return
         self.original_text = self.response["OriginalText"]
+
+        if WARN_ONLY:
+            if not self.response.get("Warn"):
+                return
+        
         print(self.response)
 
         for message in self.messages:
